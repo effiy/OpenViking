@@ -1539,6 +1539,7 @@ class ResourceService:
         add_type: Optional[str] = None,
         internal_task: bool = False,
         args: Optional[Dict[str, Any]] = None,
+        connector_auth_config: Optional[Dict[str, Any]] = None,
         shared_source: Optional["SharedSource"] = None,
         acl: AclSpec | dict[str, Any] | None = None,
         **kwargs,
@@ -1575,6 +1576,7 @@ class ResourceService:
             enforce_public_remote_targets=enforce_public_remote_targets,
             internal_task=internal_task,
             args=args,
+            connector_auth_config=connector_auth_config,
             shared_source=shared_source,
             **kwargs,
         )
@@ -1598,6 +1600,7 @@ class ResourceService:
         add_type: Optional[str] = None,
         args: Optional[Dict[str, Any]] = None,
         connector_states: Optional[Dict[str, Any]] = None,
+        connector_auth_config: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> Dict[str, Any]:
         """Submit a scheduled refresh without changing its watch task."""
@@ -1621,6 +1624,7 @@ class ResourceService:
             add_type=add_type,
             args=args,
             connector_states=connector_states,
+            connector_auth_config=connector_auth_config,
             **kwargs,
         )
 
@@ -1650,6 +1654,7 @@ class ResourceService:
         internal_task: bool = False,
         args: Optional[Dict[str, Any]] = None,
         connector_states: Optional[Dict[str, Any]] = None,
+        connector_auth_config: Optional[Dict[str, Any]] = None,
         shared_source: Optional["SharedSource"] = None,
         acl: AclSpec | dict[str, Any] | None = None,
         **kwargs,
@@ -1810,6 +1815,17 @@ class ResourceService:
             connector_args=normalized_args.processor_kwargs,
             kwargs=kwargs,
         )
+        if not delegate_to_connector and connector_auth_config:
+            # A managed credential reference only resolves inside Connector
+            # delegation; never drop it and silently degrade to an unauthorized
+            # standard-pipeline import.
+            from openviking.connector.auth import extract_credential_reference
+
+            if extract_credential_reference(connector_auth_config) is not None:
+                raise InvalidArgumentError(
+                    "connector_auth_config requires a Connector import; the source or "
+                    "parameters did not route to the Connector integration."
+                )
         if delegate_to_connector:
             resolved = connector.resolve_add_type(path, add_type)
             if resolved is None:  # pragma: no cover - should_delegate already resolved it
@@ -1829,6 +1845,7 @@ class ResourceService:
                     add_type=resolved[0],
                     path=path,
                     connector_args=normalized_args.processor_kwargs,
+                    connector_auth_config=connector_auth_config,
                 )
             connector_watch_processor_kwargs = self._watch_processor_kwargs(
                 {
@@ -1935,6 +1952,7 @@ class ResourceService:
                     to=target_to,
                     reason=reason,
                     connector_args=normalized_args.processor_kwargs,
+                    connector_auth_config=connector_auth_config,
                     tags=tags,
                     tag_mode=tag_mode,
                     wait_for_completion=not manage_watch and watch_interval > 0,

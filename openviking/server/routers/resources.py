@@ -75,6 +75,11 @@ class AddResourceRequest(BaseModel):
         is_active: Initial Watch state for Connector, native Feishu, and native Git imports. When false,
             requires watch_interval > 0 and an explicit to or parent target and creates the Watch
             paused; it stays paused until updated, regardless of the import result.
+        connector_auth_config: OpenViking-managed private credential channel. It only
+            ever carries ``openviking_credential_ref``, a secret-free reference the
+            kernel forwards to the unified resolver to obtain the current Connector
+            ``auth_config`` for this call. Callers must not set it directly; the
+            data plane injects it for saved-credential OAuth imports.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -98,6 +103,7 @@ class AddResourceRequest(BaseModel):
     directly_upload_media: bool = True
     preserve_structure: Optional[bool] = None
     args: Dict[str, Any] = Field(default_factory=dict)
+    connector_auth_config: Optional[Dict[str, Any]] = None
     telemetry: TelemetryRequest = False
     watch_interval: float = 0
     is_active: bool = True
@@ -342,6 +348,7 @@ async def add_resource(
                 internal_task=request.internal_task,
                 is_active=request.is_active,
                 args=request.args,
+                connector_auth_config=request.connector_auth_config,
                 shared_source=shared_source_ref,
                 **kwargs,
             )
