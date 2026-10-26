@@ -85,7 +85,7 @@ class TestVikingFSBindingLocal:
             if metric["type"] == "histogram":
                 assert metric["count"] > 0
                 assert len(metric["bucket_counts"]) == len(metric["bucket_bounds"]) + 1
-                assert metric["bucket_bounds"][-1] == 2**64 - 1
+                assert metric["bucket_bounds"][-1] > 404261.58497 * 1e9
                 assert sum(metric["bucket_counts"]) == metric["count"]
                 assert metric["scale"] == 1e-9 and type(metric["sum"]) is int
             else:

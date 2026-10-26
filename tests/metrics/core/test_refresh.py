@@ -42,7 +42,7 @@ async def test_collector_manager_requires_refreshable():
 
         def collect(self, registry) -> None:
             self.calls += 1
-            registry.counter("openviking_dummy_refresh_total").inc()
+            registry.inc_counter("openviking_dummy_refresh_total")
 
     mgr = CollectorManager()
     c = DummyCollector()
@@ -62,7 +62,7 @@ async def test_collector_manager_ttl_and_timeout():
 
         def collect(self, registry) -> None:
             self.calls += 1
-            registry.counter("openviking_dummy_refresh_total").inc()
+            registry.inc_counter("openviking_dummy_refresh_total")
 
     registry = MetricRegistry()
     mgr = CollectorManager()

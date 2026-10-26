@@ -84,7 +84,7 @@ def test_queue_duration_collector_records_processing_and_end_to_end_histograms(
     assert f"openviking_queue_end_to_end_duration_seconds_sum{{{labels}}} 404261.58497" in text
     assert (
         f'openviking_queue_end_to_end_duration_seconds_bucket{{bucket_schema="{schema}",'
-        'le="432000.0",outcome="success",queue="Semantic"} 1' in text
+        'le="500000.0",outcome="success",queue="Semantic"} 1' in text
     )
 
 

@@ -84,11 +84,11 @@ Collector 负责把输入转成指标语义：
 
 ### MetricRegistry
 
-MetricRegistry 是进程内的指标注册中心，用于保存当前指标值，并在导出时统一读取。
+MetricRegistry 保留 OpenViking 的指标名、标签约束和账户维度规则。单次事件的计数与耗时直接交给 OpenTelemetry SDK 累计；RAGFS 和状态采集器返回的累计值作为快照接入，不会重新作为事件计数。
 
 ### Exporter
 
-当前首个落地导出器是 Prometheus Exporter，用于把 registry 中的指标渲染成 Prometheus exposition 文本。
+`/metrics` 使用官方 Prometheus Python 客户端输出文本；OTLP HTTP/gRPC 使用 OpenTelemetry 官方导出器处理编码、发送和重试。现有 endpoint、headers、TLS 和上报周期配置保持不变。
 
 ## 使用方式
 
@@ -141,10 +141,10 @@ scrape_configs:
 
 ### 耗时分布与分位数
 
-Python 耗时指标和队列耗时共用分桶，覆盖秒、分钟、小时和天；一周以上采用倍增间隔，
-直到原生 `u64` 纳秒计时范围（约 584 年）。RAGFS 保留 0.1 毫秒起的短耗时分辨率，
-也覆盖同样的长尾范围。原有桶边界和 `+Inf` 桶保留。这里的桶边界不是任务超时，
-看板不应通过 `< 10`、固定纵轴上限或其他阈值过滤慢请求。
+业务打点只记录实际耗时和标签；Python 与 RAGFS 的耗时累计由各自的 OpenTelemetry SDK 完成。
+接入层统一配置默认统计范围，业务采集器无需维护桶边界。Python 从 0.01 秒、RAGFS 从 0.0001 秒起，
+按每个十倍数量级的 1、2、5 档覆盖到 5,000,000 秒（约 58 天），超出范围仍计入 `+Inf`。
+这里的范围不是任务超时；看板不应通过 `< 10` 或固定纵轴上限过滤慢请求。
 
 Prometheus 的 `_bucket`、`_count`、`_sum` 和 OTLP Histogram 都带有 `bucket_schema`，
 该标签由实际桶边界计算，采集器不能自行设置。**聚合分位数时必须保留 `bucket_schema`**，避免滚动升级时把
@@ -161,7 +161,7 @@ histogram_quantile(0.99,
 P95 将 `0.99` 改为 `0.95`。平均耗时使用同一组 `operation, bucket_schema` 的
 `rate(_sum) / rate(_count)`，仅在次数大于零时显示；没有完成记录时不能用零耗时代替。
 分位数仍是桶内插值估算，低流量或粗粒度桶内的结果不等于精确的单次请求耗时。
-扩展后每组 Python 直方图输出 47 条 Prometheus 时序，RAGFS 输出 49 条；
+默认每组 Python 耗时直方图输出 30 条 Prometheus 时序，RAGFS 输出 36 条；
 应将新增桶的采集和存储成本计入容量规划。
 
 ### 请求与操作
@@ -327,7 +327,7 @@ RAGFS 通过一次原生 `metrics()` 调用读取文件系统、Cache、multi-ba
 这些指标不带 `mount` 和 `account_id` 标签。未启用 Cache 或 multi-backend
 时，不生成对应指标族。`status` 为 `success` 或 `error`。
 `exists=false` 计为成功；`replace` 使用 `rename` 操作标签。
-Histogram 包含全部操作结果，保留 0.0001 秒起的短耗时边界，并覆盖完整的 `u64` 纳秒范围。
+Histogram 包含全部操作结果，使用 Rust OpenTelemetry SDK 统计；输出边界和计数直接来自 SDK。
 尚未发生的操作不导出空直方图，避免为每个插件和操作持续发布无样本的长尾桶；原有操作计数器保留。
 Python `get_stats()` 保留原有微秒字段。
 
